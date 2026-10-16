@@ -63,6 +63,7 @@ class ApiTestCase(unittest.TestCase):
         response = self.register_user()
         self.assertEqual(response.status_code, 201)
         self.assertNotIn("password", response.get_json()["user"])
+        self.assertIn("access_token", response.get_json())
 
         login = self.client.post(
             "/api/auth/login",
@@ -76,6 +77,67 @@ class ApiTestCase(unittest.TestCase):
         )
         self.assertEqual(profile.status_code, 200)
         self.assertEqual(profile.get_json()["user"]["email"], "persona@example.com")
+
+    def test_user_can_submit_donation_and_admin_can_list_it(self):
+        registration = self.register_user().get_json()
+        user_token = registration["access_token"]
+        donation_response = self.client.post(
+            "/api/donations",
+            headers={"Authorization": f"Bearer {user_token}"},
+            json={
+                "object_type": "Ropa",
+                "shelter_name": "Albergue Esperanza",
+                "message": "Donaré ropa en buen estado.",
+            },
+        )
+        self.assertEqual(donation_response.status_code, 201)
+        donation = donation_response.get_json()["donation"]
+        self.assertEqual(donation["object_type"], "Ropa")
+        self.assertEqual(donation["user"]["email"], "persona@example.com")
+
+        admin_login = self.client.post(
+            "/api/admin/login",
+            json={"username": "admin", "password": "admin-password"},
+        ).get_json()
+        admin_response = self.client.get(
+            "/api/admin/donations",
+            headers={"Authorization": f"Bearer {admin_login['access_token']}"},
+        )
+        self.assertEqual(admin_response.status_code, 200)
+        self.assertEqual(len(admin_response.get_json()["donations"]), 1)
+
+    def test_donation_routes_enforce_roles_and_validate_fields(self):
+        user_token = self.register_user().get_json()["access_token"]
+        invalid_donation = self.client.post(
+            "/api/donations",
+            headers={"Authorization": f"Bearer {user_token}"},
+            json={"object_type": "", "shelter_name": "Albergue", "message": "Mensaje"},
+        )
+        self.assertEqual(invalid_donation.status_code, 400)
+        self.assertEqual(
+            self.client.get(
+                "/api/admin/donations",
+                headers={"Authorization": f"Bearer {user_token}"},
+            ).status_code,
+            403,
+        )
+
+        admin_token = self.client.post(
+            "/api/admin/login",
+            json={"username": "admin", "password": "admin-password"},
+        ).get_json()["access_token"]
+        self.assertEqual(
+            self.client.post(
+                "/api/donations",
+                headers={"Authorization": f"Bearer {admin_token}"},
+                json={
+                    "object_type": "Ropa",
+                    "shelter_name": "Albergue",
+                    "message": "Mensaje",
+                },
+            ).status_code,
+            403,
+        )
 
     def test_registration_rejects_invalid_age_and_duplicate_email(self):
         invalid_age = self.client.post(

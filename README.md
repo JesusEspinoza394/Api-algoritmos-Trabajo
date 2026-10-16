@@ -53,12 +53,14 @@ En la configuración del servicio agrega las variables `DATABASE_URL`, `JWT_SECR
 | `POST` | `/api/admin/login` | Público | Inicia sesión de administrador con las credenciales del entorno |
 | `GET` | `/api/users/me` | Token de usuario | Consulta los datos del usuario autenticado |
 | `GET` | `/api/admin/me` | Token de administrador | Confirma la identidad del administrador autenticado |
+| `POST` | `/api/donations` | Token de usuario | Registra tipo de objeto, albergue y mensaje |
+| `GET` | `/api/admin/donations` | Token de administrador | Lista donaciones y datos de contacto del usuario |
 
 Las rutas de inicio de sesión devuelven un token JWT de acceso válido por una hora. En las rutas protegidas envía el encabezado `Authorization: Bearer <token>`.
 
 ### Ejemplos de solicitudes
 
-Registro:
+Registro (devuelve también `access_token` para iniciar la sesión):
 
 ```json
 {
@@ -88,6 +90,18 @@ Inicio de sesión de administrador:
 ```
 
 Si la pantalla de administrador pide correo, configura `ADMIN_USERNAME` con ese correo exacto. Las contraseñas de usuario se almacenan como hashes y nunca se incluyen en las respuestas.
+
+La tabla `donation` se crea al ejecutar `init-db`; vuelve a ejecutar el comando después de desplegar esta versión para crearla en una base existente. Incluye `id`, `user_id`, `object_type`, `shelter_name`, `message` y `created_at`.
+
+Ejemplo de solicitud para registrar una donación:
+
+```json
+{
+  "object_type": "Ropa y calzado",
+  "shelter_name": "Albergue Esperanza",
+  "message": "Donaré ropa en buen estado."
+}
+```
 
 ## Pruebas
 

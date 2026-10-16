@@ -1,6 +1,7 @@
 import hmac
 import os
 from datetime import timedelta
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from email_validator import EmailNotValidError, validate_email
@@ -27,6 +28,32 @@ class User(db.Model):
             "name": self.name,
             "email": self.email,
             "age": self.age,
+        }
+
+
+class Donation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    object_type = db.Column(db.String(120), nullable=False)
+    shelter_name = db.Column(db.String(160), nullable=False)
+    message = db.Column(db.String(2000), nullable=False)
+    created_at = db.Column(
+        db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+    user = db.relationship("User", backref=db.backref("donations", lazy=True))
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "object_type": self.object_type,
+            "shelter_name": self.shelter_name,
+            "message": self.message,
+            "created_at": self.created_at.isoformat(),
+            "user": {
+                "id": self.user.id,
+                "name": self.user.name,
+                "email": self.user.email,
+            },
         }
 
 
@@ -88,6 +115,8 @@ def create_app(test_config=None):
                 "register": "/api/auth/register",
                 "user_login": "/api/auth/login",
                 "admin_login": "/api/admin/login",
+                "create_donation": "/api/donations",
+                "admin_donations": "/api/admin/donations",
             },
         ), 200
 
@@ -134,7 +163,14 @@ def create_app(test_config=None):
             db.session.rollback()
             return jsonify(error="Ya existe una cuenta con ese correo electrónico."), 409
 
-        return jsonify(message="Usuario registrado correctamente.", user=user.to_dict()), 201
+        access_token = create_access_token(
+            identity=str(user.id), additional_claims={"role": "user"}
+        )
+        return jsonify(
+            message="Usuario registrado correctamente.",
+            access_token=access_token,
+            user=user.to_dict(),
+        ), 201
 
     @app.post("/api/auth/login")
     def user_login():
@@ -199,6 +235,53 @@ def create_app(test_config=None):
         if get_jwt().get("role") != "admin":
             return jsonify(error="No tienes permisos para consultar este recurso."), 403
         return jsonify(username=get_jwt_identity(), role="admin"), 200
+
+    @app.post("/api/donations")
+    @jwt_required()
+    def create_donation():
+        if get_jwt().get("role") != "user":
+            return jsonify(error="Solo los usuarios pueden registrar donaciones."), 403
+        try:
+            user_id = int(get_jwt_identity())
+        except (TypeError, ValueError):
+            return jsonify(error="Token de usuario no válido."), 401
+
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify(error="Se requiere un objeto JSON válido."), 400
+
+        object_type = data.get("object_type")
+        shelter_name = data.get("shelter_name")
+        message = data.get("message")
+        if not isinstance(object_type, str) or not object_type.strip() or len(object_type.strip()) > 120:
+            return jsonify(error="Indica el tipo de objeto (máximo 120 caracteres)."), 400
+        if not isinstance(shelter_name, str) or not shelter_name.strip() or len(shelter_name.strip()) > 160:
+            return jsonify(error="Indica el nombre del albergue (máximo 160 caracteres)."), 400
+        if not isinstance(message, str) or not message.strip() or len(message.strip()) > 2000:
+            return jsonify(error="Escribe un mensaje de hasta 2000 caracteres."), 400
+
+        donation = Donation(
+            user_id=user_id,
+            object_type=object_type.strip(),
+            shelter_name=shelter_name.strip(),
+            message=message.strip(),
+        )
+        db.session.add(donation)
+        db.session.commit()
+        return jsonify(
+            message="Gracias por tu generosidad.",
+            donation=donation.to_dict(),
+        ), 201
+
+    @app.get("/api/admin/donations")
+    @jwt_required()
+    def list_donations():
+        if get_jwt().get("role") != "admin":
+            return jsonify(error="No tienes permisos para consultar las donaciones."), 403
+        donations = db.session.scalars(
+            db.select(Donation).order_by(Donation.created_at.desc(), Donation.id.desc())
+        ).all()
+        return jsonify(donations=[donation.to_dict() for donation in donations]), 200
 
     @app.cli.command("init-db")
     def init_db():
