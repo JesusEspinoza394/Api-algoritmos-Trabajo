@@ -35,6 +35,12 @@ class ApiTestCase(unittest.TestCase):
             },
         )
 
+    def test_root_reports_api_is_active(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["status"], "ok")
+        self.assertIn("/api/auth/register", response.get_json()["endpoints"].values())
+
     def test_register_and_get_user_profile(self):
         response = self.register_user()
         self.assertEqual(response.status_code, 201)

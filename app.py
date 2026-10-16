@@ -60,6 +60,18 @@ def create_app(test_config=None):
     db.init_app(app)
     jwt.init_app(app)
 
+    @app.get("/")
+    def index():
+        return jsonify(
+            status="ok",
+            message="API de donaciones activa.",
+            endpoints={
+                "register": "/api/auth/register",
+                "user_login": "/api/auth/login",
+                "admin_login": "/api/admin/login",
+            },
+        ), 200
+
     @app.post("/api/auth/register")
     def register():
         data = request.get_json(silent=True)

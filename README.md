@@ -46,6 +46,7 @@ En la configuración del servicio agrega las variables `DATABASE_URL`, `JWT_SECR
 
 | Método | Ruta | Acceso | Descripción |
 | --- | --- | --- | --- |
+| `GET` | `/` | Público | Comprueba que la API está activa y muestra rutas principales |
 | `POST` | `/api/auth/register` | Público | Registra nombre, correo, edad y contraseña |
 | `POST` | `/api/auth/login` | Público | Inicia sesión de usuario con correo y contraseña |
 | `POST` | `/api/admin/login` | Público | Inicia sesión de administrador con las credenciales del entorno |
