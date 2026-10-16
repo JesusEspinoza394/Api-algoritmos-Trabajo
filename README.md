@@ -91,7 +91,7 @@ Inicio de sesión de administrador:
 
 Si la pantalla de administrador pide correo, configura `ADMIN_USERNAME` con ese correo exacto. Las contraseñas de usuario se almacenan como hashes y nunca se incluyen en las respuestas.
 
-La tabla `donation` se crea al ejecutar `init-db`; vuelve a ejecutar el comando después de desplegar esta versión para crearla en una base existente. Incluye `id`, `user_id`, `object_type`, `shelter_name`, `message` y `created_at`.
+La tabla `donation` se crea al ejecutar `init-db`; incluye `id`, `user_id`, `object_type`, `priority`, `shelter_name`, `message` y `created_at`. Si ya existe la tabla en Neon, aplica una vez `migrations/add_donation_priority.sql` en el SQL Editor de Neon antes de desplegar esta versión. El backend calcula la prioridad en el servidor: juguetes, útiles escolares y otro = 1; higiene personal = 2; ropa y calzado = 3; alimentos = 4. El formulario no envía ni muestra esa prioridad. El panel de administración sí la muestra y ordena primero los registros con número menor.
 
 Ejemplo de solicitud para registrar una donación:
 

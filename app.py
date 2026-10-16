@@ -1,7 +1,7 @@
 import hmac
 import os
-from datetime import timedelta
-from datetime import datetime, timezone
+import unicodedata
+from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 from email_validator import EmailNotValidError, validate_email
@@ -13,6 +13,24 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 db = SQLAlchemy()
 jwt = JWTManager()
+
+DONATION_PRIORITIES = {
+    "juguetes": 1,
+    "utiles escolares": 1,
+    "higiene personal": 2,
+    "ropa y calzado": 3,
+    "alimentos": 4,
+    "otro": 1,
+}
+
+
+def normalize_donation_type(value):
+    decomposed = unicodedata.normalize("NFKD", value.casefold())
+    return "".join(
+        character
+        for character in decomposed
+        if not unicodedata.combining(character)
+    ).strip()
 
 
 class User(db.Model):
@@ -35,6 +53,7 @@ class Donation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
     object_type = db.Column(db.String(120), nullable=False)
+    priority = db.Column(db.Integer, nullable=False, index=True)
     shelter_name = db.Column(db.String(160), nullable=False)
     message = db.Column(db.String(2000), nullable=False)
     created_at = db.Column(
@@ -42,8 +61,8 @@ class Donation(db.Model):
     )
     user = db.relationship("User", backref=db.backref("donations", lazy=True))
 
-    def to_dict(self):
-        return {
+    def to_dict(self, include_priority=False):
+        donation_data = {
             "id": self.id,
             "object_type": self.object_type,
             "shelter_name": self.shelter_name,
@@ -55,6 +74,9 @@ class Donation(db.Model):
                 "email": self.user.email,
             },
         }
+        if include_priority:
+            donation_data["priority"] = self.priority
+        return donation_data
 
 
 def create_app(test_config=None):
@@ -255,6 +277,9 @@ def create_app(test_config=None):
         message = data.get("message")
         if not isinstance(object_type, str) or not object_type.strip() or len(object_type.strip()) > 120:
             return jsonify(error="Indica el tipo de objeto (máximo 120 caracteres)."), 400
+        priority = DONATION_PRIORITIES.get(normalize_donation_type(object_type))
+        if priority is None:
+            return jsonify(error="El tipo de objeto seleccionado no es válido."), 400
         if not isinstance(shelter_name, str) or not shelter_name.strip() or len(shelter_name.strip()) > 160:
             return jsonify(error="Indica el nombre del albergue (máximo 160 caracteres)."), 400
         if not isinstance(message, str) or not message.strip() or len(message.strip()) > 2000:
@@ -263,6 +288,7 @@ def create_app(test_config=None):
         donation = Donation(
             user_id=user_id,
             object_type=object_type.strip(),
+            priority=priority,
             shelter_name=shelter_name.strip(),
             message=message.strip(),
         )
@@ -279,9 +305,17 @@ def create_app(test_config=None):
         if get_jwt().get("role") != "admin":
             return jsonify(error="No tienes permisos para consultar las donaciones."), 403
         donations = db.session.scalars(
-            db.select(Donation).order_by(Donation.created_at.desc(), Donation.id.desc())
+            db.select(Donation).order_by(
+                Donation.priority.asc(),
+                Donation.created_at.desc(),
+                Donation.id.desc(),
+            )
         ).all()
-        return jsonify(donations=[donation.to_dict() for donation in donations]), 200
+        return jsonify(
+            donations=[
+                donation.to_dict(include_priority=True) for donation in donations
+            ]
+        ), 200
 
     @app.cli.command("init-db")
     def init_db():

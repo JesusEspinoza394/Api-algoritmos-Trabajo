@@ -78,22 +78,33 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(profile.status_code, 200)
         self.assertEqual(profile.get_json()["user"]["email"], "persona@example.com")
 
-    def test_user_can_submit_donation_and_admin_can_list_it(self):
+    def test_user_can_submit_donation_and_admin_can_list_it_by_priority(self):
         registration = self.register_user().get_json()
         user_token = registration["access_token"]
-        donation_response = self.client.post(
-            "/api/donations",
-            headers={"Authorization": f"Bearer {user_token}"},
-            json={
-                "object_type": "Ropa",
-                "shelter_name": "Albergue Esperanza",
-                "message": "Donaré ropa en buen estado.",
-            },
-        )
-        self.assertEqual(donation_response.status_code, 201)
-        donation = donation_response.get_json()["donation"]
-        self.assertEqual(donation["object_type"], "Ropa")
-        self.assertEqual(donation["user"]["email"], "persona@example.com")
+        priorities = [
+            ("Alimentos", 4),
+            ("Ropa y calzado", 3),
+            ("Higiene personal", 2),
+            ("Útiles escolares", 1),
+            ("Juguetes", 1),
+            ("Otro", 1),
+        ]
+        for object_type, expected_priority in priorities:
+            with self.subTest(object_type=object_type):
+                donation_response = self.client.post(
+                    "/api/donations",
+                    headers={"Authorization": f"Bearer {user_token}"},
+                    json={
+                        "object_type": object_type,
+                        "shelter_name": "Albergue Esperanza",
+                        "message": "Una donación de prueba.",
+                    },
+                )
+                self.assertEqual(donation_response.status_code, 201)
+                donation = donation_response.get_json()["donation"]
+                self.assertEqual(donation["object_type"], object_type)
+                self.assertEqual(donation["user"]["email"], "persona@example.com")
+                self.assertNotIn("priority", donation)
 
         admin_login = self.client.post(
             "/api/admin/login",
@@ -104,7 +115,13 @@ class ApiTestCase(unittest.TestCase):
             headers={"Authorization": f"Bearer {admin_login['access_token']}"},
         )
         self.assertEqual(admin_response.status_code, 200)
-        self.assertEqual(len(admin_response.get_json()["donations"]), 1)
+        donations = admin_response.get_json()["donations"]
+        self.assertEqual(len(donations), len(priorities))
+        self.assertEqual([donation["priority"] for donation in donations], [1, 1, 1, 2, 3, 4])
+        self.assertEqual(
+            {donation["object_type"] for donation in donations[:3]},
+            {"Útiles escolares", "Juguetes", "Otro"},
+        )
 
     def test_donation_routes_enforce_roles_and_validate_fields(self):
         user_token = self.register_user().get_json()["access_token"]
