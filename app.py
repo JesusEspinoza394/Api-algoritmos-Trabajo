@@ -1,3 +1,4 @@
+import heapq
 import hmac
 import os
 import unicodedata
@@ -59,6 +60,8 @@ class Donation(db.Model):
     created_at = db.Column(
         db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
     )
+    status = db.Column(db.String(20), nullable=False, default="pending", index=True)
+    sent_at = db.Column(db.DateTime(timezone=True), nullable=True)
     user = db.relationship("User", backref=db.backref("donations", lazy=True))
 
     def to_dict(self, include_priority=False):
@@ -76,6 +79,8 @@ class Donation(db.Model):
         }
         if include_priority:
             donation_data["priority"] = self.priority
+            donation_data["status"] = self.status
+            donation_data["sent_at"] = self.sent_at.isoformat() if self.sent_at else None
         return donation_data
 
 
@@ -139,6 +144,7 @@ def create_app(test_config=None):
                 "admin_login": "/api/admin/login",
                 "create_donation": "/api/donations",
                 "admin_donations": "/api/admin/donations",
+                "send_donation": "/api/admin/donations/<id>/send",
             },
         ), 200
 
@@ -304,17 +310,70 @@ def create_app(test_config=None):
     def list_donations():
         if get_jwt().get("role") != "admin":
             return jsonify(error="No tienes permisos para consultar las donaciones."), 403
-        donations = db.session.scalars(
-            db.select(Donation).order_by(
-                Donation.priority.asc(),
-                Donation.created_at.desc(),
-                Donation.id.desc(),
-            )
-        ).all()
+        status = request.args.get("status", "pending")
+        if status not in {"pending", "sent"}:
+            return jsonify(error="El estado debe ser 'pending' o 'sent'."), 400
+
+        if status == "pending":
+            pending_donations = db.session.scalars(
+                db.select(Donation).where(Donation.status == "pending")
+            ).all()
+            priority_queue = []
+            for donation in pending_donations:
+                heapq.heappush(
+                    priority_queue,
+                    (
+                        donation.priority,
+                        donation.created_at.timestamp(),
+                        donation.id,
+                        donation,
+                    ),
+                )
+            donations = [
+                heapq.heappop(priority_queue)[-1]
+                for _ in range(len(priority_queue))
+            ]
+        else:
+            donations = db.session.scalars(
+                db.select(Donation)
+                .where(Donation.status == "sent")
+                .order_by(Donation.sent_at.desc(), Donation.id.desc())
+            ).all()
         return jsonify(
             donations=[
                 donation.to_dict(include_priority=True) for donation in donations
             ]
+        ), 200
+
+    @app.post("/api/admin/donations/<int:donation_id>/send")
+    @jwt_required()
+    def send_donation(donation_id):
+        if get_jwt().get("role") != "admin":
+            return jsonify(error="No tienes permisos para enviar donaciones."), 403
+
+        sent_at = datetime.now(timezone.utc)
+        result = db.session.execute(
+            db.update(Donation)
+            .where(
+                Donation.id == donation_id,
+                Donation.status == "pending",
+            )
+            .values(status="sent", sent_at=sent_at)
+        )
+        if result.rowcount != 1:
+            db.session.rollback()
+            donation = db.session.get(Donation, donation_id)
+            if donation is None:
+                return jsonify(error="Donación no encontrada."), 404
+            return jsonify(error="Esta donación ya fue enviada."), 409
+
+        db.session.commit()
+        donation = db.session.get(Donation, donation_id)
+        if donation is None:
+            return jsonify(error="Donación no encontrada."), 404
+        return jsonify(
+            message="Donación marcada como enviada.",
+            donation=donation.to_dict(include_priority=True),
         ), 200
 
     @app.cli.command("init-db")

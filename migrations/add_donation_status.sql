@@ -1,0 +1,12 @@
+BEGIN;
+
+ALTER TABLE donation
+    ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'pending';
+
+ALTER TABLE donation
+    ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP WITH TIME ZONE;
+
+CREATE INDEX IF NOT EXISTS ix_donation_status
+    ON donation (status);
+
+COMMIT;

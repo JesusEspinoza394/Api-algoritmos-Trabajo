@@ -54,7 +54,9 @@ En la configuración del servicio agrega las variables `DATABASE_URL`, `JWT_SECR
 | `GET` | `/api/users/me` | Token de usuario | Consulta los datos del usuario autenticado |
 | `GET` | `/api/admin/me` | Token de administrador | Confirma la identidad del administrador autenticado |
 | `POST` | `/api/donations` | Token de usuario | Registra tipo de objeto, albergue y mensaje |
-| `GET` | `/api/admin/donations` | Token de administrador | Lista donaciones y datos de contacto del usuario |
+| `GET` | `/api/admin/donations?status=pending` | Token de administrador | Lista la cola, ordenada por prioridad y luego antigüedad |
+| `GET` | `/api/admin/donations?status=sent` | Token de administrador | Consulta el historial de donaciones enviadas |
+| `POST` | `/api/admin/donations/<id>/send` | Token de administrador | Marca una donación como enviada y la quita de la cola activa |
 
 Las rutas de inicio de sesión devuelven un token JWT de acceso válido por una hora. En las rutas protegidas envía el encabezado `Authorization: Bearer <token>`.
 
@@ -91,7 +93,7 @@ Inicio de sesión de administrador:
 
 Si la pantalla de administrador pide correo, configura `ADMIN_USERNAME` con ese correo exacto. Las contraseñas de usuario se almacenan como hashes y nunca se incluyen en las respuestas.
 
-La tabla `donation` se crea al ejecutar `init-db`; incluye `id`, `user_id`, `object_type`, `priority`, `shelter_name`, `message` y `created_at`. Si ya existe la tabla en Neon, aplica una vez `migrations/add_donation_priority.sql` en el SQL Editor de Neon antes de desplegar esta versión. El backend calcula la prioridad en el servidor: juguetes, útiles escolares y otro = 1; higiene personal = 2; ropa y calzado = 3; alimentos = 4. El formulario no envía ni muestra esa prioridad. El panel de administración sí la muestra y ordena primero los registros con número menor.
+La tabla `donation` se crea al ejecutar `init-db`; incluye `id`, `user_id`, `object_type`, `priority`, `shelter_name`, `message`, `created_at`, `status` y `sent_at`. Si la tabla ya existe en Neon, aplica en orden `migrations/add_donation_priority.sql` (si aún no añadiste `priority`) y `migrations/add_donation_status.sql` en el SQL Editor antes de desplegar esta versión. El backend calcula la prioridad en el servidor: juguetes, útiles escolares y otro = 1; higiene personal = 2; ropa y calzado = 3; alimentos = 4. La cola activa prioriza el número menor y usa antigüedad (FIFO) para ordenar elementos con igual prioridad. «Enviar» cambia atómicamente el estado a `sent`; la donación desaparece de la cola y permanece en el historial.
 
 Ejemplo de solicitud para registrar una donación:
 
