@@ -12,6 +12,7 @@ class ApiTestCase(unittest.TestCase):
                 "JWT_SECRET_KEY": "test-secret-that-is-at-least-32-bytes",
                 "ADMIN_USERNAME": "admin",
                 "ADMIN_PASSWORD": "admin-password",
+                "FRONTEND_ORIGINS": "http://localhost:8000",
             }
         )
         self.context = self.app.app_context()
@@ -40,6 +41,23 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["status"], "ok")
         self.assertIn("/api/auth/register", response.get_json()["endpoints"].values())
+
+    def test_cors_allows_configured_frontend_origin_and_preflight(self):
+        headers = {
+            "Origin": "http://localhost:8000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        }
+        response = self.client.options("/api/auth/login", headers=headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.headers["Access-Control-Allow-Origin"], "http://localhost:8000"
+        )
+        self.assertIn("POST", response.headers["Access-Control-Allow-Methods"])
+
+    def test_cors_does_not_allow_unconfigured_origin(self):
+        response = self.client.get("/", headers={"Origin": "https://unknown.example"})
+        self.assertNotIn("Access-Control-Allow-Origin", response.headers)
 
     def test_register_and_get_user_profile(self):
         response = self.register_user()

@@ -40,6 +40,10 @@ def create_app(test_config=None):
         JWT_ACCESS_TOKEN_EXPIRES=timedelta(hours=1),
         ADMIN_USERNAME=os.getenv("ADMIN_USERNAME"),
         ADMIN_PASSWORD=os.getenv("ADMIN_PASSWORD"),
+        FRONTEND_ORIGINS=os.getenv(
+            "FRONTEND_ORIGINS",
+            "http://127.0.0.1:8000,http://localhost:8000",
+        ),
     )
     if test_config:
         app.config.update(test_config)
@@ -59,6 +63,21 @@ def create_app(test_config=None):
 
     db.init_app(app)
     jwt.init_app(app)
+
+    @app.after_request
+    def add_cors_headers(response):
+        origin = request.headers.get("Origin")
+        allowed_origins = app.config["FRONTEND_ORIGINS"]
+        if isinstance(allowed_origins, str):
+            allowed_origins = {
+                item.strip() for item in allowed_origins.split(",") if item.strip()
+            }
+        if origin in allowed_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+            response.vary.add("Origin")
+        return response
 
     @app.get("/")
     def index():

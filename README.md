@@ -22,6 +22,7 @@ Copia `.env.example` a `.env` y reemplaza sus valores:
 - `DATABASE_URL`: cadena de conexión PostgreSQL de Neon. Usa la cadena que proporciona Neon y conserva `sslmode=require`.
 - `JWT_SECRET_KEY`: valor aleatorio largo y privado para firmar los tokens.
 - `ADMIN_USERNAME` y `ADMIN_PASSWORD`: credenciales únicas del administrador. No hay registro público de administradores.
+- `FRONTEND_ORIGINS`: orígenes permitidos para la interfaz, separados por comas. En Render, agrega el dominio HTTPS exacto de la página; conserva localhost si también probarás localmente.
 
 Inicializa las tablas y ejecuta la API:
 
@@ -40,7 +41,7 @@ Configura el servicio web con estos comandos:
 - **Build Command:** `pip install -r requirements.txt`
 - **Start Command:** `gunicorn "app:create_app()"`
 
-En la configuración del servicio agrega las variables `DATABASE_URL`, `JWT_SECRET_KEY`, `ADMIN_USERNAME` y `ADMIN_PASSWORD`. Antes de usar la API, crea las tablas una sola vez ejecutando `flask --app app:create_app init-db` desde la consola del servicio o desde un entorno local conectado a la misma base de Neon.
+En la configuración del servicio agrega las variables `DATABASE_URL`, `JWT_SECRET_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` y `FRONTEND_ORIGINS`. Antes de usar la API, crea las tablas una sola vez ejecutando `flask --app app:create_app init-db` desde la consola del servicio o desde un entorno local conectado a la misma base de Neon.
 
 ## Rutas
 
@@ -81,12 +82,12 @@ Inicio de sesión de administrador:
 
 ```json
 {
-  "username": "admin",
+  "username": "admin@ejemplo.com",
   "password": "la-clave-configurada-en-el-entorno"
 }
 ```
 
-Las contraseñas de usuario se almacenan como hashes y nunca se incluyen en las respuestas.
+Si la pantalla de administrador pide correo, configura `ADMIN_USERNAME` con ese correo exacto. Las contraseñas de usuario se almacenan como hashes y nunca se incluyen en las respuestas.
 
 ## Pruebas
 
