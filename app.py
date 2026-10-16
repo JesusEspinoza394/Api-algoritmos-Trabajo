@@ -323,7 +323,7 @@ def create_app(test_config=None):
                 heapq.heappush(
                     priority_queue,
                     (
-                        donation.priority,
+                        -donation.priority,
                         donation.created_at.timestamp(),
                         donation.id,
                         donation,

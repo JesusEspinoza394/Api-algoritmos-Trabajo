@@ -93,7 +93,7 @@ Inicio de sesión de administrador:
 
 Si la pantalla de administrador pide correo, configura `ADMIN_USERNAME` con ese correo exacto. Las contraseñas de usuario se almacenan como hashes y nunca se incluyen en las respuestas.
 
-La tabla `donation` se crea al ejecutar `init-db`; incluye `id`, `user_id`, `object_type`, `priority`, `shelter_name`, `message`, `created_at`, `status` y `sent_at`. Si la tabla ya existe en Neon, aplica en orden `migrations/add_donation_priority.sql` (si aún no añadiste `priority`) y `migrations/add_donation_status.sql` en el SQL Editor antes de desplegar esta versión. El backend calcula la prioridad en el servidor: juguetes, útiles escolares y otro = 1; higiene personal = 2; ropa y calzado = 3; alimentos = 4. La cola activa prioriza el número menor y usa antigüedad (FIFO) para ordenar elementos con igual prioridad. «Enviar» cambia atómicamente el estado a `sent`; la donación desaparece de la cola y permanece en el historial.
+La tabla `donation` se crea al ejecutar `init-db`; incluye `id`, `user_id`, `object_type`, `priority`, `shelter_name`, `message`, `created_at`, `status` y `sent_at`. Si la tabla ya existe en Neon, aplica en orden `migrations/add_donation_priority.sql` (si aún no añadiste `priority`) y `migrations/add_donation_status.sql` en el SQL Editor antes de desplegar esta versión. El backend calcula la prioridad en el servidor: juguetes, útiles escolares y otro = 1; higiene personal = 2; ropa y calzado = 3; alimentos = 4. La cola activa prioriza primero el número más alto y usa antigüedad (FIFO) para ordenar elementos con igual prioridad. «Enviar» cambia atómicamente el estado a `sent`; la donación desaparece de la cola y permanece en el historial.
 
 Ejemplo de solicitud para registrar una donación:
 
