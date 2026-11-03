@@ -345,11 +345,16 @@ def create_app(test_config=None):
         unique_shelter_count = len(
             {shelter_name.strip().casefold() for shelter_name in shelter_names}
         )
+        donation_counts = db.session.execute(
+            db.select(Donation.user_id, db.func.count(Donation.id))
+            .group_by(Donation.user_id)
+        ).all()
         return jsonify(
             donations=[
                 donation.to_dict(include_priority=True) for donation in donations
             ],
             unique_shelter_count=unique_shelter_count,
+            donation_counts_by_user=dict(donation_counts),
         ), 200
 
     @app.post("/api/admin/donations/<int:donation_id>/send")

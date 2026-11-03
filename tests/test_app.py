@@ -133,6 +133,8 @@ class ApiTestCase(unittest.TestCase):
             ],
         )
         self.assertTrue(all(donation["status"] == "pending" for donation in donations))
+        donation_counts = admin_response.get_json()["donation_counts_by_user"]
+        self.assertEqual(donation_counts[str(donations[0]["user"]["id"])], len(priorities))
 
     def test_admin_sending_donation_removes_it_from_queue_and_keeps_history(self):
         user_token = self.register_user().get_json()["access_token"]
@@ -213,6 +215,9 @@ class ApiTestCase(unittest.TestCase):
         )
         self.assertEqual(pending.get_json()["unique_shelter_count"], 2)
         self.assertEqual(sent.get_json()["unique_shelter_count"], 2)
+        user_id = str(sent.get_json()["donations"][0]["user"]["id"])
+        self.assertEqual(pending.get_json()["donation_counts_by_user"][user_id], 3)
+        self.assertEqual(sent.get_json()["donation_counts_by_user"][user_id], 3)
 
     def test_only_admin_can_mark_donation_as_sent_and_invalid_status_is_rejected(self):
         user_token = self.register_user().get_json()["access_token"]
