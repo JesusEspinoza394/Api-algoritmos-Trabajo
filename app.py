@@ -339,10 +339,17 @@ def create_app(test_config=None):
                 .where(Donation.status == "sent")
                 .order_by(Donation.sent_at.desc(), Donation.id.desc())
             ).all()
+        shelter_names = db.session.scalars(
+            db.select(Donation.shelter_name).distinct()
+        ).all()
+        unique_shelter_count = len(
+            {shelter_name.strip().casefold() for shelter_name in shelter_names}
+        )
         return jsonify(
             donations=[
                 donation.to_dict(include_priority=True) for donation in donations
-            ]
+            ],
+            unique_shelter_count=unique_shelter_count,
         ), 200
 
     @app.post("/api/admin/donations/<int:donation_id>/send")

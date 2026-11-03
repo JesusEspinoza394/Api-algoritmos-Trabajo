@@ -177,6 +177,43 @@ class ApiTestCase(unittest.TestCase):
         )
         self.assertEqual(repeated_send.status_code, 409)
 
+    def test_shelter_count_is_same_for_pending_and_sent_lists(self):
+        user_token = self.register_user().get_json()["access_token"]
+        donation_ids = []
+        for shelter_name in ("Albergue Norte", "Albergue Sur", "  ALBERGUE NORTE  "):
+            response = self.client.post(
+                "/api/donations",
+                headers={"Authorization": f"Bearer {user_token}"},
+                json={
+                    "object_type": "Juguetes",
+                    "shelter_name": shelter_name,
+                    "message": "Una donación.",
+                },
+            )
+            self.assertEqual(response.status_code, 201)
+            donation_ids.append(response.get_json()["donation"]["id"])
+
+        admin_token = self.client.post(
+            "/api/admin/login",
+            json={"username": "admin", "password": "admin-password"},
+        ).get_json()["access_token"]
+        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        self.client.post(
+            f"/api/admin/donations/{donation_ids[0]}/send",
+            headers=admin_headers,
+        )
+
+        pending = self.client.get(
+            "/api/admin/donations?status=pending",
+            headers=admin_headers,
+        )
+        sent = self.client.get(
+            "/api/admin/donations?status=sent",
+            headers=admin_headers,
+        )
+        self.assertEqual(pending.get_json()["unique_shelter_count"], 2)
+        self.assertEqual(sent.get_json()["unique_shelter_count"], 2)
+
     def test_only_admin_can_mark_donation_as_sent_and_invalid_status_is_rejected(self):
         user_token = self.register_user().get_json()["access_token"]
         donation = self.client.post(
