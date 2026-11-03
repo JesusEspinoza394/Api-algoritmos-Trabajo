@@ -339,11 +339,8 @@ def create_app(test_config=None):
                 .where(Donation.status == "sent")
                 .order_by(Donation.sent_at.desc(), Donation.id.desc())
             ).all()
-        shelter_names = db.session.scalars(
-            db.select(Donation.shelter_name).distinct()
-        ).all()
-        unique_shelter_count = len(
-            {shelter_name.strip().casefold() for shelter_name in shelter_names}
+        supported_shelter_count = db.session.scalar(
+            db.select(db.func.count(Donation.id)).where(Donation.status == "sent")
         )
         donation_counts = db.session.execute(
             db.select(Donation.user_id, db.func.count(Donation.id))
@@ -353,7 +350,7 @@ def create_app(test_config=None):
             donations=[
                 donation.to_dict(include_priority=True) for donation in donations
             ],
-            unique_shelter_count=unique_shelter_count,
+            supported_shelter_count=supported_shelter_count,
             donation_counts_by_user=dict(donation_counts),
         ), 200
 

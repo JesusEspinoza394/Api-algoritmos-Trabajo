@@ -179,7 +179,7 @@ class ApiTestCase(unittest.TestCase):
         )
         self.assertEqual(repeated_send.status_code, 409)
 
-    def test_shelter_count_is_same_for_pending_and_sent_lists(self):
+    def test_supported_count_only_includes_sent_donations_on_both_lists(self):
         user_token = self.register_user().get_json()["access_token"]
         donation_ids = []
         for shelter_name in ("Albergue Norte", "Albergue Sur", "  ALBERGUE NORTE  "):
@@ -200,6 +200,11 @@ class ApiTestCase(unittest.TestCase):
             json={"username": "admin", "password": "admin-password"},
         ).get_json()["access_token"]
         admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        pending_before_send = self.client.get(
+            "/api/admin/donations?status=pending",
+            headers=admin_headers,
+        )
+        self.assertEqual(pending_before_send.get_json()["supported_shelter_count"], 0)
         self.client.post(
             f"/api/admin/donations/{donation_ids[0]}/send",
             headers=admin_headers,
@@ -213,8 +218,8 @@ class ApiTestCase(unittest.TestCase):
             "/api/admin/donations?status=sent",
             headers=admin_headers,
         )
-        self.assertEqual(pending.get_json()["unique_shelter_count"], 2)
-        self.assertEqual(sent.get_json()["unique_shelter_count"], 2)
+        self.assertEqual(pending.get_json()["supported_shelter_count"], 1)
+        self.assertEqual(sent.get_json()["supported_shelter_count"], 1)
         user_id = str(sent.get_json()["donations"][0]["user"]["id"])
         self.assertEqual(pending.get_json()["donation_counts_by_user"][user_id], 3)
         self.assertEqual(sent.get_json()["donation_counts_by_user"][user_id], 3)
