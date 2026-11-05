@@ -83,10 +83,10 @@ class ApiTestCase(unittest.TestCase):
         user_token = registration["access_token"]
         priorities = [
             ("Alimentos", 1),
-            ("Ropa y calzado", 2),
-            ("Higiene personal", 3),
-            ("Útiles escolares", 4),
-            ("Juguetes", 4),
+            ("Ropa y calzado", 1),
+            ("Higiene personal", 2),
+            ("Útiles escolares", 3),
+            ("Juguetes", 3),
             ("Otro", 4),
         ]
         created_ids = {}
@@ -119,14 +119,24 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(admin_response.status_code, 200)
         donations = admin_response.get_json()["donations"]
         self.assertEqual(len(donations), len(priorities))
-        self.assertEqual([donation["priority"] for donation in donations], [1, 2, 3, 4, 4, 4])
+        self.assertEqual([donation["priority"] for donation in donations], [1, 1, 2, 3, 3, 4])
         self.assertEqual(
-            [donation["object_type"] for donation in donations[:3]],
-            ["Alimentos", "Ropa y calzado", "Higiene personal"],
+            [donation["object_type"] for donation in donations],
+            [
+                "Alimentos",
+                "Ropa y calzado",
+                "Higiene personal",
+                "Útiles escolares",
+                "Juguetes",
+                "Otro",
+            ],
         )
         self.assertEqual(
-            [donation["id"] for donation in donations[3:]],
+            [donation["id"] for donation in donations],
             [
+                created_ids["Alimentos"],
+                created_ids["Ropa y calzado"],
+                created_ids["Higiene personal"],
                 created_ids["Útiles escolares"],
                 created_ids["Juguetes"],
                 created_ids["Otro"],

@@ -14,17 +14,22 @@ SET priority = CASE
         btrim(object_type),
         'áéíóúüÁÉÍÓÚÜ',
         'aeiouuAEIOUU'
-    )) = 'ropa y calzado' THEN 2
+    )) = 'ropa y calzado' THEN 1
     WHEN lower(translate(
         btrim(object_type),
         'áéíóúüÁÉÍÓÚÜ',
         'aeiouuAEIOUU'
-    )) = 'higiene personal' THEN 3
+    )) = 'higiene personal' THEN 2
     WHEN lower(translate(
         btrim(object_type),
         'áéíóúüÁÉÍÓÚÜ',
         'aeiouuAEIOUU'
-    )) IN ('juguetes', 'utiles escolares', 'otro') THEN 4
+    )) IN ('juguetes', 'utiles escolares') THEN 3
+    WHEN lower(translate(
+        btrim(object_type),
+        'áéíóúüÁÉÍÓÚÜ',
+        'aeiouuAEIOUU'
+    )) = 'otro' THEN 4
     ELSE 1
 END;
 

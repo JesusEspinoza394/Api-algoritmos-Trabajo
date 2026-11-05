@@ -17,10 +17,10 @@ jwt = JWTManager()
 
 DONATION_PRIORITIES = {
     "alimentos": 1,
-    "ropa y calzado": 2,
-    "higiene personal": 3,
-    "juguetes": 4,
-    "utiles escolares": 4,
+    "ropa y calzado": 1,
+    "higiene personal": 2,
+    "juguetes": 3,
+    "utiles escolares": 3,
     "otro": 4,
 }
 
