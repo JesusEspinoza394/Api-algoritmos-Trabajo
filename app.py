@@ -16,12 +16,12 @@ db = SQLAlchemy()
 jwt = JWTManager()
 
 DONATION_PRIORITIES = {
-    "juguetes": 1,
-    "utiles escolares": 1,
-    "higiene personal": 2,
-    "ropa y calzado": 3,
-    "alimentos": 4,
-    "otro": 1,
+    "alimentos": 1,
+    "ropa y calzado": 2,
+    "higiene personal": 3,
+    "juguetes": 4,
+    "utiles escolares": 4,
+    "otro": 4,
 }
 
 
@@ -323,7 +323,7 @@ def create_app(test_config=None):
                 heapq.heappush(
                     priority_queue,
                     (
-                        -donation.priority,
+                        donation.priority,
                         donation.created_at.timestamp(),
                         donation.id,
                         donation,
