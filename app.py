@@ -80,6 +80,8 @@ class Donation(db.Model):
             donation_data["status"] = self.status
             donation_data["sent_at"] = self.sent_at.isoformat() if self.sent_at else None
         return donation_data
+
+
 class Node:
     def __init__(self, donation_data):
         self.data = donation_data
@@ -206,7 +208,136 @@ def create_app(test_config=None):
             response.vary.add("Origin")
         return response
 
-   @app.get("/api/admin/donations")
+    @app.get("/")
+    def index():
+        return jsonify(message="API de donaciones activa"), 200
+
+    @app.post("/api/auth/register")
+    def register():
+        data = request.get_json() or {}
+        name = data.get("name")
+        email = data.get("email")
+        age = data.get("age")
+        password = data.get("password")
+
+        if not all([name, email, age, password]):
+            return jsonify(error="Faltan campos obligatorios."), 400
+
+        try:
+            valid = validate_email(email)
+            email = valid.email
+        except EmailNotValidError:
+            return jsonify(error="Correo electrónico inválido."), 400
+
+        password_hash = generate_password_hash(password)
+        user = User(name=name, email=email, age=age, password_hash=password_hash)
+        
+        try:
+            db.session.add(user)
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            return jsonify(error="El correo electrónico ya está registrado."), 400
+
+        access_token = create_access_token(identity=str(user.id), additional_claims={"role": "user"})
+        return jsonify(message="Usuario registrado exitosamente", access_token=access_token, user=user.to_dict()), 201
+
+    @app.post("/api/auth/login")
+    def login():
+        data = request.get_json() or {}
+        email = data.get("email")
+        password = data.get("password")
+
+        user = db.session.scalar(db.select(User).where(User.email == email))
+        if not user or not check_password_hash(user.password_hash, password):
+            return jsonify(error="Credenciales inválidas."), 401
+
+        access_token = create_access_token(identity=str(user.id), additional_claims={"role": "user"})
+        return jsonify(access_token=access_token, user=user.to_dict()), 200
+
+    @app.post("/api/admin/login")
+    def admin_login():
+        data = request.get_json() or {}
+        username = data.get("username")
+        password = data.get("password")
+
+        admin_user = app.config.get("ADMIN_USERNAME")
+        admin_pass = app.config.get("ADMIN_PASSWORD")
+
+        if username != admin_user or password != admin_pass:
+            return jsonify(error="Credenciales de administrador inválidas."), 401
+
+        access_token = create_access_token(identity="admin", additional_claims={"role": "admin"})
+        return jsonify(access_token=access_token), 200
+
+    @app.get("/api/users/me")
+    @jwt_required()
+    def get_user_me():
+        user_id = get_jwt_identity()
+        user = db.session.get(User, int(user_id))
+        if not user:
+            return jsonify(error="Usuario no encontrado."), 404
+        return jsonify(user=user.to_dict()), 200
+
+    @app.get("/api/admin/me")
+    @jwt_required()
+    def get_admin_me():
+        if get_jwt().get("role") != "admin":
+            return jsonify(error="No autorizado."), 403
+        return jsonify(message="Admin autenticado correctamente"), 200
+
+    @app.post("/api/donations")
+    @jwt_required()
+    def create_donation():
+        if get_jwt().get("role") != "user":
+            return jsonify(error="Solo los usuarios registrados pueden donar."), 403
+
+        data = request.get_json() or {}
+        object_type_raw = data.get("object_type", "")
+        shelter_name = data.get("shelter_name")
+        message = data.get("message")
+
+        if not object_type_raw or not shelter_name or not message:
+            return jsonify(error="Faltan campos requeridos."), 400
+
+        normalized = normalize_donation_type(object_type_raw)
+        priority = DONATION_PRIORITIES.get(normalized, 4)
+
+        user_id = int(get_jwt_identity())
+        donation = Donation(
+            user_id=user_id,
+            object_type=object_type_raw,
+            priority=priority,
+            shelter_name=shelter_name,
+            message=message,
+            status="pending"
+        )
+
+        db.session.add(donation)
+        db.session.commit()
+
+        return jsonify(message="Donación registrada exitosamente", donation=donation.to_dict(include_priority=True)), 201
+
+    @app.post("/api/admin/donations/<int:donation_id>/send")
+    @jwt_required()
+    def send_donation(donation_id):
+        if get_jwt().get("role") != "admin":
+            return jsonify(error="No autorizado."), 403
+
+        donation = db.session.get(Donation, donation_id)
+        if not donation:
+            return jsonify(error="Donación no encontrada."), 404
+
+        if donation.status == "sent":
+            return jsonify(error="La donación ya fue enviada."), 400
+
+        donation.status = "sent"
+        donation.sent_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+        return jsonify(message="Donación marcada como enviada", donation=donation.to_dict(include_priority=True)), 200
+
+    @app.get("/api/admin/donations")
     @jwt_required()
     def list_donations():
         if get_jwt().get("role") != "admin":
@@ -220,7 +351,6 @@ def create_app(test_config=None):
                 db.select(Donation).where(Donation.status == "pending")
             ).all()
             
-            # Construimos la cola de prioridad usando la Lista Doblemente Enlazada
             priority_list = DoublyLinkedList()
             for donation in pending_donations:
                 item_dict = donation.to_dict(include_priority=True)
@@ -249,10 +379,13 @@ def create_app(test_config=None):
             db.select(Donation.user_id, db.func.count(Donation.id))
             .group_by(Donation.user_id)
         ).all()
-        return jsonify()
+        
+        return jsonify(
             donations=donations,
             supported_shelter_count=supported_shelter_count,
-            donation_counts_by_user=dict(donation_counts),
+            donation_counts_by_user=dict(donation_counts)
+        ), 200
+
     @app.get("/api/admin/donations/search")
     @jwt_required()
     def search_donation_binary_endpoint():
@@ -288,3 +421,5 @@ def create_app(test_config=None):
             return jsonify(found=True, donation=result), 200
         else:
             return jsonify(found=False, message="Donación no encontrada con esos criterios en la cola activa."), 404
+
+    return app
