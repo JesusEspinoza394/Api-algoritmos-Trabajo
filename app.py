@@ -1,5 +1,3 @@
-import heapq
-import hmac
 import os
 import unicodedata
 from datetime import datetime, timedelta, timezone
@@ -251,7 +249,7 @@ def create_app(test_config=None):
             db.select(Donation.user_id, db.func.count(Donation.id))
             .group_by(Donation.user_id)
         ).all()
-        return jsonify(
+        return jsonify()
             donations=donations,
             supported_shelter_count=supported_shelter_count,
             donation_counts_by_user=dict(donation_counts),
@@ -290,4 +288,3 @@ def create_app(test_config=None):
             return jsonify(found=True, donation=result), 200
         else:
             return jsonify(found=False, message="Donación no encontrada con esos criterios en la cola activa."), 404
-        ), 200
